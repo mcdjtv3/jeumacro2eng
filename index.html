@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IS - LM Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            align-self: center;
+        }
+
+        .slider-container {
+            margin: 20px 0;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: linear-gradient(to right, #ff5722 0%, #ddd 0%); /* Initial fill with orange on the left and gray on the right */
+            border-radius: 5px;
+            outline: none;
+            transition: background 0.3s ease-in-out;
+        }
+
+        /* Slider Thumb Style */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 40px;
+            height: 40px;
+            background: url('images/flame.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 40px;
+            height: 40px;
+            background: url('images/flame.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+
+        /* Hover Effect for the Thumb */
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: url('images/hover.png') no-repeat center center;
+            background-size: cover;
+            transform: scale(1.2); /* Enlarge on hover */
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            background: url('images/hover.png') no-repeat center center;
+            background-size: cover;
+            transform: scale(1.2); /* Enlarge on hover */
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>IS-LM Model Simulator</h1>
+
+    <div class="container">
+        <!-- Government Spending (IS Curve) -->
+        <div class="slider-container">
+            <label for="govSpending">Shift IS Curve by Taxes</label>
+            <input type="range" id="govSpending" min="-50" max="50" value="0" step="1" oninput="updateSlider(this); updateIsLmSimulation();">
+        </div>
+
+        <!-- Taxes (IS Curve) -->
+        <div class="slider-container">
+            <label for="taxes">Shift IS Curve by Government Spending</label>
+            <input type="range" id="taxes" min="-50" max="50" value="0" step="1" oninput="updateSlider(this); updateIsLmSimulation();">
+        </div>
+
+        <!-- Interest Rate (LM Curve) -->
+        <div class="slider-container">
+            <label for="interestRate">Shift LM Curve by Money Supply</label>
+            <input type="range" id="interestRate" min="-3" max="3" value="0" step="0.1" oninput="updateSlider(this); updateIsLmSimulation();">
+        </div>
+
+        <!-- Money Supply (LM Curve) -->
+        <div class="slider-container">
+            <label for="moneySupply">Shift LM Curve by Interest rates</label>
+            <input type="range" id="moneySupply" min="-3" max="3" value="0" step="0.1" oninput="updateSlider(this); updateIsLmSimulation();">
+        </div>
+
+        <!-- IS-LM Chart -->
+        <canvas id="is-lm-chart"></canvas>
+    </div>
+
+    <script>
+        // Function to update slider fill as thumb moves
+        function updateSlider(slider) {
+            const value = (slider.value - slider.min) / (slider.max - slider.min) * 100;  // Calculate percentage based on slider value
+            slider.style.background = `linear-gradient(to right, #ff5722 ${value}%, #ddd ${value}%)`;  // Change background fill
+        }
+
+        // Base values for IS-LM model
+        const baseX = [3, 7];  // Base X coordinates for IS curve (Revenue Y1, Y2)
+        const baseY_IS = [7, 3];  // Base Y coordinates for IS curve (Interest Rate i1, i2)
+        const baseX_LM = [3, 7];  // Base X coordinates for LM curve (Y1, Y2)
+        const baseY_LM = [3, 7];  // Base Y coordinates for LM curve (Interest Rate i1, i2)
+
+        // Pente constante (perpendicularité)
+        const isSlope = -1; // Pente de la courbe IS (doit rester constante)
+        const lmSlope = 1; // Pente de la courbe LM (doit rester constante)
+
+        // ChartJS setup for IS-LM dynamic model
+        const ctxIsLm = document.getElementById('is-lm-chart').getContext('2d');
+        const isLmChart = new Chart(ctxIsLm, {
+            type: 'line',
+            data: {
+                labels: [0, 10],  // Simple visual range for income (X-axis)
+                datasets: [{
+                    label: 'IS Curve (Base)',
+                    data: baseY_IS.map((y, i) => ({ x: baseX[i], y })),  // Downward-sloping IS curve
+                    borderColor: 'red',
+                    borderWidth: 3,
+                    fill: false,
+                    borderDash: [5, 5]  // Dashed line for base IS curve
+                },
+                {
+                    label: 'LM Curve (Base)',
+                    data: baseY_LM.map((y, i) => ({ x: baseX_LM[i], y })),  // Upward-sloping LM curve
+                    borderColor: '#FF6500',
+                    borderWidth: 3,
+                    fill: false,
+                    borderDash: [5, 5]  // Dashed line for base LM curve
+                },
+                {
+                    label: 'IS Curve (New)',
+                    data: baseY_IS.map((y, i) => ({ x: baseX[i], y })),  // New IS curve (moves right/left)
+                    borderColor: '#C7253E',
+                    borderWidth: 3,
+                    fill: false
+                },
+                {
+                    label: 'LM Curve (New)',
+                    data: baseY_LM.map((y, i) => ({ x: baseX_LM[i], y })),  // New LM curve (moves up/down)
+                    borderColor: '#E85C0D',
+                    borderWidth: 3,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Income (Y)'
+                        },
+                        min: 0,
+                        max: 10
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Interest Rate (i)'
+                        },
+                        min: 0,
+                        max: 10
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                }
+            }
+        });
+
+        // Function to update IS-LM dynamic simulation
+        function updateIsLmSimulation() {
+            // Get values from sliders
+            const govSpendingShift = parseFloat(document.getElementById('govSpending').value) / 100 * 2;  // From -50% to +50%, stronger effect
+            const taxesShift = parseFloat(document.getElementById('taxes').value) / 100 * 2;  // From -50% to +50%, stronger effect
+            const interestRateShift = parseFloat(document.getElementById('interestRate').value);  // Adjust LM curve based on interest rate
+            const moneySupplyShift = parseFloat(document.getElementById('moneySupply').value);   // Adjust LM curve based on money supply
+
+            // Adjust IS curve (translation only, keeping slope constant)
+            const isShiftX = (govSpendingShift - taxesShift) * 2;  // Larger horizontal shift for stronger effect
+            const newIsCurve = baseX.map((x, i) => ({ x: x + isShiftX, y: baseY_IS[i] + isShiftX * isSlope }));  // Keep slope constant
+
+            // Adjust LM curve
+            const lmShiftX = moneySupplyShift;  // Horizontal shift for LM curve
+            const lmShiftY = -interestRateShift;  // Vertical shift for LM curve
+            const newLmCurve = baseX_LM.map((x, i) => ({ x: x + lmShiftX, y: baseY_LM[i] + lmShiftX * lmSlope + lmShiftY }));
+
+            // Update IS curve dataset
+            isLmChart.data.datasets[2].data = newIsCurve;
+
+            // Update LM curve dataset
+            isLmChart.data.datasets[3].data = newLmCurve;
+
+            // Update the chart
+            isLmChart.update();
+        }
+
+        // Initialize the IS-LM dynamic model
+        updateIsLmSimulation();
+    </script>
+
+</body>
+</html>
